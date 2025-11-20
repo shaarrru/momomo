@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Momo - The Cat Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #222; 
+            font-family: sans-serif;
+            overflow: hidden; 
+            touch-action: none; 
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            max-width: 500px; 
+            aspect-ratio: 9/16; 
+            background-color: #000;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover; 
+            pointer-events: none; 
+        }
+
+        .hidden {
+            opacity: 0;
+            z-index: 0;
+        }
+        
+        .visible {
+            opacity: 1;
+            z-index: 10;
+        }
+
+        #head-hitbox {
+            position: absolute;
+            z-index: 100; 
+            top: 15%;    
+            left: 25%;   
+            width: 50%;  
+            height: 25%; 
+            background-color: transparent; 
+            border-radius: 50%;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent; 
+            touch-action: none;
+        }
+
+        .interaction-disabled {
+            pointer-events: none;
+        }
+
+        #vid-close { background-color: #333; } 
+        #vid-open { background-color: #87CEEB; } 
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <video id="vid-close" class="visible" muted playsinline preload="auto">
+            <source src="close.mp4" type="video/mp4">
+        </video>
+
+        <video id="vid-open" class="hidden" muted playsinline preload="auto">
+            <source src="open.mp4" type="video/mp4">
+        </video>
+
+        <div id="head-hitbox"></div>
+    </div>
+
+    <audio id="purr-sound" preload="auto">
+        <source src="purr.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        const DELAY_AFTER_RELEASE = 2000; 
+
+        const vidClose = document.getElementById('vid-close');
+        const vidOpen = document.getElementById('vid-open');
+        const hitbox = document.getElementById('head-hitbox');
+        const sound = document.getElementById('purr-sound');
+
+        let hasClosed = false;
+        let wakeUpTimer = null;
+        let isHolding = false;
+
+        // --- Interaction Start ---
+        function startInteraction(e) {
+            if(e.cancelable) e.preventDefault();
+            hitbox.classList.add('interaction-disabled');
+            hasClosed = false; 
+            
+            if (sound) {
+                sound.currentTime = 0;
+                sound.loop = true; 
+                sound.play().catch(e => console.log("Audio blocked", e));
+            }
+
+            window.addEventListener('touchend', endInteraction);
+            window.addEventListener('mouseup', endInteraction);
+
+            vidOpen.classList.replace('visible', 'hidden');
+            vidClose.classList.replace('hidden', 'visible');
+            vidClose.currentTime = 0;
+            vidClose.play();
+        }
+
+        // Wrapper Listeners
+        hitbox.addEventListener('touchstart', (e) => {
+            isHolding = true;
+            startInteraction(e);
+        }, {passive: false});
+
+        hitbox.addEventListener('mousedown', (e) => {
+            isHolding = true;
+            startInteraction(e);
+        });
+
+        function endInteraction() {
+            isHolding = false;
+            window.removeEventListener('touchend', endInteraction);
+            window.removeEventListener('mouseup', endInteraction);
+
+            if (hasClosed) {
+                scheduleWakeUp();
+            }
+        }
+
+        // --- Video Logic ---
+
+        vidClose.onended = () => {
+            hasClosed = true;
+            if (!isHolding) {
+                scheduleWakeUp();
+            }
+        };
+
+        // NEW: FORCE STOP SOUND WHEN OPEN VIDEO STARTS PLAYING
+        // This is the most accurate way to ensure no overlap
+        vidOpen.onplay = () => {
+            if (sound) {
+                sound.pause();
+                sound.currentTime = 0;
+            }
+        };
+
+        vidOpen.onended = () => {
+            // Double check sound is off
+            if (sound) {
+                sound.pause();
+                sound.currentTime = 0;
+            }
+
+            vidClose.currentTime = 0;
+            vidClose.classList.replace('hidden', 'visible');
+            vidOpen.classList.replace('visible', 'hidden');
+            hitbox.classList.remove('interaction-disabled');
+        };
+
+        function scheduleWakeUp() {
+            wakeUpTimer = setTimeout(() => {
+                // Pre-stop sound before swapping videos
+                if (sound) {
+                    sound.pause();
+                    sound.currentTime = 0;
+                }
+
+                vidClose.classList.replace('visible', 'hidden');
+                vidOpen.classList.replace('hidden', 'visible');
+                vidOpen.currentTime = 0;
+                vidOpen.play();
+            }, DELAY_AFTER_RELEASE);
+        }
+
+        window.addEventListener('load', () => {
+            vidClose.load();
+            vidOpen.load();
+        });
+    </script>
+
+</body>
+</html>
