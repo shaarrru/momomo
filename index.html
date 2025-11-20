@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Momo - The Cat Game</title>
+    <title>Momomo</title>
     <style>
         body {
             margin: 0;
@@ -58,15 +58,11 @@
             left: 25%;   
             width: 50%;  
             height: 25%; 
-            background-color: transparent; 
+            background-color: transparent; /* Change to rgba(255,0,0,0.3) to debug hitbox */
             border-radius: 50%;
             cursor: pointer;
             -webkit-tap-highlight-color: transparent; 
             touch-action: none;
-        }
-
-        .interaction-disabled {
-            pointer-events: none;
         }
 
         #vid-close { background-color: #333; } 
@@ -77,11 +73,11 @@
 
     <div id="game-container">
         <video id="vid-close" class="visible" muted playsinline preload="auto">
-            <source src="close.mp4" type="video/mp4">
+            <source src="close.MP4" type="video/mp4">
         </video>
 
         <video id="vid-open" class="hidden" muted playsinline preload="auto">
-            <source src="open.mp4" type="video/mp4">
+            <source src="open.MP4" type="video/mp4">
         </video>
 
         <div id="head-hitbox"></div>
@@ -99,97 +95,118 @@
         const hitbox = document.getElementById('head-hitbox');
         const sound = document.getElementById('purr-sound');
 
-        let hasClosed = false;
+        // Flags
+        let isSequenceLocked = false; // Prevents restart until full loop is done
+        let isHolding = false;        // Tracks if user is currently pressing
+        let hasClosed = false;        // Tracks if close animation finished
         let wakeUpTimer = null;
-        let isHolding = false;
 
-        // --- Interaction Start ---
-        function startInteraction(e) {
+        // --- Interaction Handlers ---
+
+        function triggerAction(e) {
+            // 1. STOP if the sequence is already running
+            if (isSequenceLocked) return;
+
             if(e.cancelable) e.preventDefault();
-            hitbox.classList.add('interaction-disabled');
-            hasClosed = false; 
             
-            if (sound) {
-                sound.currentTime = 0;
-                sound.loop = true; 
-                sound.play().catch(e => console.log("Audio blocked", e));
-            }
+            // 2. LOCK the sequence immediately
+            isSequenceLocked = true; 
+            isHolding = true;
+            hasClosed = false; 
 
+            // 3. Setup Release Listeners
             window.addEventListener('touchend', endInteraction);
             window.addEventListener('mouseup', endInteraction);
 
+            // 4. Play Sound
+            if (sound) {
+                sound.currentTime = 0;
+                sound.loop = true; 
+                sound.play().catch(err => console.log("Audio blocked", err));
+            }
+
+            // 5. Reset and Play Close Video
             vidOpen.classList.replace('visible', 'hidden');
             vidClose.classList.replace('hidden', 'visible');
             vidClose.currentTime = 0;
             vidClose.play();
         }
 
-        // Wrapper Listeners
-        hitbox.addEventListener('touchstart', (e) => {
-            isHolding = true;
-            startInteraction(e);
-        }, {passive: false});
-
-        hitbox.addEventListener('mousedown', (e) => {
-            isHolding = true;
-            startInteraction(e);
-        });
-
         function endInteraction() {
             isHolding = false;
             window.removeEventListener('touchend', endInteraction);
             window.removeEventListener('mouseup', endInteraction);
 
+            // Only schedule wake up if the eyes are ALREADY fully closed
             if (hasClosed) {
                 scheduleWakeUp();
             }
         }
 
+        // --- Event Listeners ---
+
+        hitbox.addEventListener('touchstart', (e) => {
+            triggerAction(e);
+        }, {passive: false});
+
+        hitbox.addEventListener('mousedown', (e) => {
+            triggerAction(e);
+        });
+
         // --- Video Logic ---
 
+        // 1. When Eyes Close animation finishes
         vidClose.onended = () => {
             hasClosed = true;
+            // If user already let go, start the wake up timer immediately
             if (!isHolding) {
                 scheduleWakeUp();
             }
+            // If user is still holding, we do nothing. We wait for endInteraction() to trigger scheduleWakeUp()
         };
 
-        // NEW: FORCE STOP SOUND WHEN OPEN VIDEO STARTS PLAYING
-        // This is the most accurate way to ensure no overlap
-        vidOpen.onplay = () => {
-            if (sound) {
-                sound.pause();
-                sound.currentTime = 0;
-            }
-        };
-
-        vidOpen.onended = () => {
-            // Double check sound is off
-            if (sound) {
-                sound.pause();
-                sound.currentTime = 0;
-            }
-
-            vidClose.currentTime = 0;
-            vidClose.classList.replace('hidden', 'visible');
-            vidOpen.classList.replace('visible', 'hidden');
-            hitbox.classList.remove('interaction-disabled');
-        };
-
+        // 2. The Wake Up Routine
         function scheduleWakeUp() {
             wakeUpTimer = setTimeout(() => {
-                // Pre-stop sound before swapping videos
+                // Stop purring
                 if (sound) {
                     sound.pause();
                     sound.currentTime = 0;
                 }
 
+                // Swap to Open video
                 vidClose.classList.replace('visible', 'hidden');
                 vidOpen.classList.replace('hidden', 'visible');
                 vidOpen.currentTime = 0;
                 vidOpen.play();
             }, DELAY_AFTER_RELEASE);
         }
+
+        // 3. When Open animation finishes (The Loop is Complete)
+        vidOpen.onended = () => {
+            // Reset visual state to ready
+            vidClose.currentTime = 0;
+            vidClose.classList.replace('hidden', 'visible');
+            vidOpen.classList.replace('visible', 'hidden');
+
+            // Ensure sound is off
+            if (sound) {
+                sound.pause();
+                sound.currentTime = 0;
+            }
+
+            // *** CRITICAL: UNLOCK HERE ***
+            // This allows the user to click again only after everything is done
+            isSequenceLocked = false;
+        };
+
+        // Ensure sound stops if video starts playing (double safety)
+        vidOpen.onplay = () => {
+            if (sound) {
+                sound.pause();
+                sound.currentTime = 0;
+            }
+        };
 
         window.addEventListener('load', () => {
             vidClose.load();
