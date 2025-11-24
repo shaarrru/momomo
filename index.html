@@ -4,6 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Momomo</title>
+
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-GWLH4FEF82"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-GWLH4FEF82');
+    </script>
+
     <style>
         body {
             margin: 0;
@@ -99,6 +109,16 @@
 
         function stayAsleep(e) {
             if(e.cancelable) e.preventDefault();
+
+            // --- GOOGLE ANALYTICS CLICK TRACKING ---
+            // This tracks every time the user clicks/taps the head
+            if (typeof gtag === 'function') {
+                gtag('event', 'momomo_interaction', {
+                    'event_category': 'Game Play',
+                    'event_label': 'Head Pat'
+                });
+            }
+            // ---------------------------------------
 
             if (wakeUpTimer) {
                 clearTimeout(wakeUpTimer);
